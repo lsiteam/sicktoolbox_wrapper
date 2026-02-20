@@ -18,7 +18,7 @@ public:
     declare_parameter<int>("port", DEFAULT_SICK_TCP_PORT);
     declare_parameter<std::string>("ipaddress", DEFAULT_SICK_IP_ADDRESS);
     declare_parameter<std::string>("frame_id", "laser");
-    declare_parameter<bool>("inverted", false);
+    declare_parameter<bool>("inverted", true);
     declare_parameter<double>("timer_smoothing_factor", 0.97);
     declare_parameter<double>("timer_error_threshold", 0.5);
     declare_parameter<double>("resolution", 1.0);
@@ -37,7 +37,10 @@ public:
     get_parameter("stop_angle", active_sector_stop_angle);
     get_parameter("scan_rate", sick_motor_speed);
 
-    scan_pub = this->create_publisher<sensor_msgs::msg::LaserScan>("scan", 10);
+    rclcpp::QoS qos_profile = rclcpp::SensorDataQoS();
+    qos_profile.durability(RMW_QOS_POLICY_DURABILITY_VOLATILE);
+
+    scan_pub = this->create_publisher<sensor_msgs::msg::LaserScan>("scan", qos_profile);
     timer_ = this->create_wall_timer(10ms, std::bind(&SickLDNode::timer_callback, this));
   }
 
@@ -46,8 +49,6 @@ private:
                     uint32_t n_intensity_values, rclcpp::Time start, double scan_time, bool inverted,
                     float angle_min, float angle_max, const std::string &frame_id) {
     sensor_msgs::msg::LaserScan scan_msg;
-    scan_msg.header.frame_id = frame_id;
-    scan_msg.header.stamp = start;
 
     scan_msg.angle_min = inverted ? angle_max : angle_min;
     scan_msg.angle_max = inverted ? angle_min : angle_max;
@@ -65,6 +66,8 @@ private:
     for (size_t i = 0; i < n_intensity_values; i++) {
       scan_msg.intensities[i] = static_cast<float>(intensity_values[i]);
     }
+    scan_msg.header.frame_id = frame_id;
+    scan_msg.header.stamp = this->now();
     scan_pub->publish(scan_msg);
   }
 
